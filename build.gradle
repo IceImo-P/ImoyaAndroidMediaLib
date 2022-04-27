@@ -23,11 +23,13 @@ allprojects {
         mavenCentral()
 
         maven {
-            name = "GitHubPackages-ImoyaAndroidUtil"
-            url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidUtil")
+            name = "GitHubPackages-ImoyaAndroidMediaLib"
+            url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidMediaLib")
             credentials {
-                username = githubProperties.getProperty("imoya.gpr.user") ?: System.getenv("IMOYA_GPR_USER")
-                password = githubProperties.getProperty("imoya.gpr.token") ?: System.getenv("IMOYA_GPR_TOKEN")
+                // username = githubProperties.getProperty("imoya.gpr.user") ?: System.getenv("IMOYA_GPR_USER")
+                // password = githubProperties.getProperty("imoya.gpr.token") ?: System.getenv("IMOYA_GPR_TOKEN")
+                username = githubProperties.getProperty("gpr.user") ?: System.getenv("IMOYA_GPR_USER")
+                password = githubProperties.getProperty("gpr.token") ?: System.getenv("IMOYA_GPR_TOKEN")
             }
         }
     }

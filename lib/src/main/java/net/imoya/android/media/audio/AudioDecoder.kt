@@ -83,7 +83,8 @@ class AudioDecoder {
      */
     @Throws(IOException::class)
     fun setSource(context: Context, resourceId: Int) {
-        extractor.setDataSource(context.resources.openRawResourceFd(resourceId))
+        val fd = context.resources.openRawResourceFd(resourceId)
+        extractor.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
         this.checkFormat()
     }
 

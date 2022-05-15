@@ -3,11 +3,12 @@ package net.imoya.android.media.audio
 import android.content.Context
 import android.media.AudioFormat
 import android.media.MediaFormat
+import android.os.Build
 import net.imoya.android.media.MediaFormatException
 import net.imoya.android.media.audio.AudioDecoder.AudioDecoderCallback
 import net.imoya.android.media.audio.raw.RawAudio
 import net.imoya.android.util.Log
-import java.util.*
+import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -19,7 +20,7 @@ object AudioUtility {
         Log.d(TAG, "convertResourcesToRawAudio: start")
         val lock = ReentrantLock()
         val condition = lock.newCondition()
-        val map: HashMap<Int, RawAudio> = HashMap<Int, RawAudio>(resourceIds.size)
+        val map: HashMap<Int, RawAudio> = HashMap(resourceIds.size)
         val errors = ArrayList<Exception>()
 
         class Callback(private val id: Int) : AudioDecoderCallback {
@@ -50,15 +51,29 @@ object AudioUtility {
             TAG,
             "convertResourcesToRawAudio: start parallel decoding: thread = ${Thread.currentThread().id}"
         )
-        Arrays.stream(resourceIds).distinct().parallel().forEach {
-            Log.d(
-                TAG,
-                "convertResourcesToRawAudio: decoding $it, thread = ${Thread.currentThread().id}"
-            )
-            val decoder = AudioDecoder()
-            decoder.setSource(context, it)
-            decoder.convert(Callback(it))
+        val executorService = Executors.newCachedThreadPool()
+        map.keys.forEach {
+            executorService.execute {
+                Log.d(
+                    TAG,
+                    "convertResourcesToRawAudio: decoding $it, thread = ${Thread.currentThread().id}"
+                )
+                val decoder = AudioDecoder()
+                decoder.setSource(context, it)
+                decoder.convert(Callback(it))
+            }
         }
+
+//        // Android 7.0 以上のみのサポートであれば下記のコードで実装可能
+//        Arrays.stream(resourceIds).distinct().parallel().forEach {
+//            Log.d(
+//                TAG,
+//                "convertResourcesToRawAudio: decoding $it, thread = ${Thread.currentThread().id}"
+//            )
+//            val decoder = AudioDecoder()
+//            decoder.setSource(context, it)
+//            decoder.convert(Callback(it))
+//        }
 
         Log.d(TAG, "convertResourcesToRawAudio: waiting")
         lock.withLock {
@@ -66,6 +81,8 @@ object AudioUtility {
                 condition.await()
             }
         }
+
+        executorService.shutdown()
 
         if (errors.size > 0) {
             (0 until errors.size).forEach {
@@ -89,7 +106,10 @@ object AudioUtility {
 
     @Throws(MediaFormatException::class)
     fun getAudioEncoding(mediaFormat: MediaFormat): Int {
-        return if (mediaFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && mediaFormat.containsKey(
+                MediaFormat.KEY_PCM_ENCODING
+            )
+        ) {
             mediaFormat.getInteger(MediaFormat.KEY_PCM_ENCODING)
         } else {
             AudioFormat.ENCODING_PCM_16BIT

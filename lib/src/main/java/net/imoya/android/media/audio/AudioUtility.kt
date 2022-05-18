@@ -16,11 +16,17 @@ object AudioUtility {
     @Throws(Exception::class)
     @JvmStatic
     @Suppress("unused")
+    @Deprecated("Use ResourcesToRawConverter")
     fun convertResourcesToRawAudio(context: Context, resourceIds: IntArray): Array<RawAudio> {
-        Log.d(TAG, "convertResourcesToRawAudio: start")
+        Log.v(TAG, "convertResourcesToRawAudio: start")
+
+        // 重複を除いたリソースIDセットを作成する
+        val idSet: MutableSet<Int> = HashSet(resourceIds.size)
+        resourceIds.forEach { idSet.add(it) }
+
         val lock = ReentrantLock()
         val condition = lock.newCondition()
-        val map: HashMap<Int, RawAudio> = HashMap(resourceIds.size)
+        val map: HashMap<Int, RawAudio> = HashMap(idSet.size)
         val errors = ArrayList<Exception>()
 
         class Callback(private val id: Int) : AudioDecoderCallback {
@@ -52,7 +58,7 @@ object AudioUtility {
             "convertResourcesToRawAudio: start parallel decoding: thread = ${Thread.currentThread().id}"
         )
         val executorService = Executors.newCachedThreadPool()
-        map.keys.forEach {
+        idSet.forEach {
             executorService.execute {
                 Log.d(
                     TAG,
@@ -77,8 +83,9 @@ object AudioUtility {
 
         Log.d(TAG, "convertResourcesToRawAudio: waiting")
         lock.withLock {
-            while (errors.size == 0 && map.size < resourceIds.size) {
+            while (errors.size == 0 && map.size < idSet.size) {
                 condition.await()
+//                Log.d(TAG, "convertResourcesToRawAudio: errors.size = ${errors.size}, out.size = ${map.size}, in.size = ${idSet.size}")
             }
         }
 
@@ -104,6 +111,9 @@ object AudioUtility {
             .build()
     }
 
+    /**
+     * Returns PCM encoding property value from [MediaFormat]
+     */
     @Throws(MediaFormatException::class)
     fun getAudioEncoding(mediaFormat: MediaFormat): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && mediaFormat.containsKey(
@@ -128,5 +138,5 @@ object AudioUtility {
     /**
      * Tag for log
      */
-    private const val TAG = "ImoMediaLib.MediaUtil"
+    private const val TAG = "ImoMediaLib.AudioUtil"
 }

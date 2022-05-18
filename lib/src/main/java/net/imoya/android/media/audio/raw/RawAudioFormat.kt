@@ -51,4 +51,8 @@ class RawAudioFormat(private val mediaFormat: MediaFormat) {
      */
     val samplesPerSecond: Int
         get() = audioFormat.sampleRate
+
+    override fun toString(): String {
+        return "audio/raw, $mediaFormat"
+    }
 }

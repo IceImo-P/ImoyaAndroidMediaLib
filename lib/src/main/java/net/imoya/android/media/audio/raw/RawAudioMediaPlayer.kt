@@ -1,148 +1,133 @@
-package net.imoya.android.media.audio.raw;
+package net.imoya.android.media.audio.raw
 
-import android.media.AudioAttributes;
-import android.media.MediaPlayer;
-
-import androidx.annotation.NonNull;
-
-import net.imoya.android.media.OnMemoryDataSource;
-import net.imoya.android.media.audio.wav.RawToWavConverter;
-import net.imoya.android.util.Log;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import net.imoya.android.media.OnMemoryDataSource
+import net.imoya.android.media.audio.wav.RawToWavConverter
+import net.imoya.android.util.Log
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.Condition
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
- * {@link MediaPlayer} を使用して、1個の {@link RawAudio} を再生します。
+ * [MediaPlayer] を使用して、1個の [RawAudio] を再生します。
  */
-public class RawAudioMediaPlayer {
+class RawAudioMediaPlayer {
     /**
-     * Tag for log
+     * 音声の用途を表す [AudioAttributes].USAGE_* 値
      */
-    private static final String TAG = "ImoMediaLib.RawAudioMPlyr";
+    var audioUsage = AudioAttributes.USAGE_MEDIA
 
     /**
-     * 音声の用途
+     * 音声の種別を表す [AudioAttributes].CONTENT_TYPE_* 値
      */
-    private int audioUsage = AudioAttributes.USAGE_MEDIA;
+    var contentType = AudioAttributes.CONTENT_TYPE_UNKNOWN
 
     /**
-     * 音声の種別
+     * 結合済み音声データを再生する [MediaPlayer]
      */
-    private int contentType = AudioAttributes.CONTENT_TYPE_UNKNOWN;
+    private var mediaPlayer: MediaPlayer? = null
 
     /**
-     * 結合済み音声データを再生する {@link MediaPlayer}
+     * スレッド制御用 [ReentrantLock]
      */
-    private MediaPlayer mediaPlayer;
+    private var lock: ReentrantLock = ReentrantLock()
 
     /**
-     * 音声の用途を返します。
-     *
-     * @return 音声の用途を表す {@link AudioAttributes}.USAGE_* 値
+     * スレッド制御用 [Condition]
      */
-    @SuppressWarnings("unused")
-    public int getAudioUsage() {
-        return this.audioUsage;
-    }
-
-    /**
-     * 音声の用途を設定します。
-     *
-     * @param audioUsage 音声の用途を表す {@link AudioAttributes}.USAGE_* 値
-     */
-    public void setAudioUsage(int audioUsage) {
-        this.audioUsage = audioUsage;
-    }
-
-    /**
-     * 音声の種別を返します。
-     *
-     * @return 音声の種別を表す {@link AudioAttributes}.CONTENT_TYPE_* 値
-     */
-    @SuppressWarnings("unused")
-    public int getContentType() {
-        return this.contentType;
-    }
-
-    /**
-     * 音声の種別を設定します。
-     *
-     * @param contentType 音声の種別を表す {@link AudioAttributes}.CONTENT_TYPE_* 値
-     */
-    public void setContentType(int contentType) {
-        this.contentType = contentType;
-    }
+    private var condition: Condition = lock.newCondition()
 
     /**
      * 音声の再生に使用しているリソースを解放します。
      */
-    public synchronized void release() {
-        this.cleanupMediaPlayer();
+    fun release() {
+        cleanupMediaPlayer()
     }
 
     /**
-     * 1個の {@link RawAudio} を再生します。
-     * <p>
+     * 1個の [RawAudio] を再生します。
+     *
+     *
      * 再生を完了するまで、メソッドを呼び出したスレッドはブロックされます。
      *
      * @param audio 再生する音声
      */
-    public void play(@NonNull RawAudio audio) {
+    fun play(audio: RawAudio) {
         try {
-            final ByteBuffer wav = RawToWavConverter.convert(audio);
-            final OnMemoryDataSource dataSource = new OnMemoryDataSource(wav);
-
-            this.mediaPlayer = new MediaPlayer();
-            this.mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(this.audioUsage)
-                    .setContentType(this.contentType)
+            val wav = RawToWavConverter.convert(audio)
+            val dataSource = OnMemoryDataSource(wav)
+            val mp = MediaPlayer()
+            mediaPlayer = mp
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(audioUsage)
+                    .setContentType(contentType)
                     .build()
-            );
-            this.mediaPlayer.setDataSource(dataSource);
-            this.mediaPlayer.prepare();
-            this.mediaPlayer.setOnCompletionListener(listener -> {
-                synchronized (RawAudioMediaPlayer.this) {
-                    RawAudioMediaPlayer.this.notifyAll();
+            )
+            mp.setDataSource(dataSource)
+            mp.prepare()
+            mp.setOnCompletionListener {
+                lock.withLock {
+                    condition.signalAll()
                 }
-            });
-            this.mediaPlayer.start();
-            synchronized (this) {
-                while (this.mediaPlayer != null && this.mediaPlayer.isPlaying()) {
+            }
+//            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+//                @Override
+//                public void onCompletion(MediaPlayer mp) {
+//                    synchronized (RawAudioMediaPlayer.this) {
+//                        RawAudioMediaPlayer.this.notifyAll();
+//                    }
+//                }
+//            });
+            mp.start()
+            lock.withLock {
+                while (mp.isPlaying) {
                     try {
-                        this.wait(1000);
-                    } catch (InterruptedException e) {
-                        Log.d(TAG, "playWithMediaPlayer: interrupted", e);
+                        condition.await(1000, TimeUnit.MILLISECONDS)
+                    } catch (e: InterruptedException) {
+                        Log.d(TAG, "playWithMediaPlayer: interrupted", e)
                     }
                 }
             }
-        } catch (IOException e) {
-            Log.v(TAG, "play: Exception at play", e);
+        } catch (e: IOException) {
+            Log.v(TAG, "play: Exception at play", e)
         } finally {
-            this.cleanupMediaPlayer();
+            cleanupMediaPlayer()
         }
     }
 
-    private synchronized void cleanupMediaPlayer() {
-        // Log.d(TAG, "cleanupMediaPlayer: start");
-
+    private fun cleanupMediaPlayer() {
+        Log.v(TAG, "cleanupMediaPlayer: start")
         try {
-            if (this.mediaPlayer != null) {
-                if (this.mediaPlayer.isPlaying()) {
-                    try {
-                        this.mediaPlayer.stop();
-                    } catch (IllegalStateException ex) {
-                        Log.i(TAG, "cleanupMediaPlayer: ERROR on stop MediaPlayer", ex);
+            lock.withLock {
+                val mp = mediaPlayer
+                if (mp != null) {
+                    if (mp.isPlaying) {
+                        try {
+                            mp.stop()
+                        } catch (ex: IllegalStateException) {
+                            Log.i(TAG, "cleanupMediaPlayer: ERROR on stop MediaPlayer", ex)
+                        }
                     }
+                    mp.release()
+                    mediaPlayer = null
+                    condition.signalAll()
                 }
-                this.mediaPlayer.release();
-                this.mediaPlayer = null;
-                this.notifyAll();
             }
-        } catch (Throwable tr) {
-            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr);
+        } catch (tr: Throwable) {
+            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr)
         }
 
-        // Log.d(TAG, "cleanupMediaPlayer: end");
+        Log.v(TAG, "cleanupMediaPlayer: end")
+    }
+
+    companion object {
+        /**
+         * Tag for log
+         */
+        private const val TAG = "ImoMediaLib.RawAudioMPlyr"
     }
 }

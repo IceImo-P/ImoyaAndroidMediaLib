@@ -1,234 +1,296 @@
-package net.imoya.android.media.audio.raw;
+package net.imoya.android.media.audio.raw
 
-import android.media.AudioFormat;
-import android.media.AudioTrack;
-
-import net.imoya.android.media.audio.AudioSequencer;
-import net.imoya.android.util.Log;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.ShortBuffer;
-import java.util.Arrays;
+import android.media.AudioFormat
+import net.imoya.android.media.audio.AudioSequencer
+import net.imoya.android.util.Log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.*
+import kotlin.jvm.Synchronized
 
 /**
- * 複数の {@link RawAudio} 音声データを結合し、連続再生する機能を提供します。
+ * 複数の [RawAudio] 音声データを結合し、連続再生する機能を提供します。
  */
-public class RawAudioSequencer extends AudioSequencer<RawAudioSequenceItem> {
+class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
     /**
-     * Tag for log
+     * 再生方法
      */
-    private static final String TAG = "ImoMediaLib.RawAudioSeq";
+    enum class PlayerType {
+        /**
+         * [android.media.AudioTrack] を使用 (推奨, デフォルト)
+         */
+        AUDIO_TRACK,
+
+        /**
+         * [android.media.MediaPlayer] を使用
+         */
+        MEDIA_PLAYER,
+    }
 
     /**
      * オーディオ形式
      */
-    private RawAudioFormat trackFormat;
+    @Suppress("weaker")
+    var trackFormat: RawAudioFormat? = null
+
+    /**
+     * 再生方法
+     */
+    @Suppress("weaker")
+    var playerType: PlayerType = PlayerType.AUDIO_TRACK
 
     /**
      * 結合済み音声データ
      */
-    private ByteBuffer trackData;
+    private var trackData: ByteBuffer? = null
 
     /**
-     * 結合済み音声データを再生する {@link RawAudioPlayer}
+     * 結合済み音声データを再生する [RawAudioPlayer]
      */
-    private RawAudioPlayer rawAudioPlayer = null;
+    private var rawAudioPlayer: RawAudioPlayer? = null
 
     /**
-     * 結合済み音声データを再生する {@link RawAudioMediaPlayer}
+     * 結合済み音声データを再生する [RawAudioMediaPlayer]
      */
-    private RawAudioMediaPlayer mediaPlayer;
+    private var mediaPlayer: RawAudioMediaPlayer? = null
 
-    @Override
-    protected void createPlayableSequence() {
-        final RawAudioSequenceItem[] items = this.sequence.toArray(new RawAudioSequenceItem[0]);
-        final int[] startPosition = new int[items.length];
-        final RawAudioFormat format = items[0].rawAudio.getFormat();
-        int lastEndPosition = 0;
+    override fun createPlayableSequence() {
+        val items = sequence.toTypedArray()
+        val startPosition = IntArray(items.size)
+        val format = items[0].rawAudio.format
+        var lastEndPosition = 0
 
         // 総サンプル数
-        int wholeLength = 0;
+        var wholeLength = 0
 
         // 各アイテムの再生位置を決定する
-        for (int i = 0; i < items.length; i++) {
-            final RawAudioSequenceItem item = items[i];
+        for (i in items.indices) {
+            val item = items[i]
 
             // 再生開始位置(samples)を算出する
-            int startPos = lastEndPosition +
-                    (item.delayMilliSeconds * format.getSamplesPerSecond() / 1000);
-            if (startPos < 0)
-                startPos = 0;
-            startPosition[i] = startPos;
+            var startPos = lastEndPosition +
+                    item.delayMilliSeconds * format.samplesPerSecond / 1000
+            if (startPos < 0) startPos = 0
+            startPosition[i] = startPos
 
             // このアイテムの再生終了位置(samples)を算出する(次のアイテムの再生開始位置算出に使う)
-            lastEndPosition = startPos + items[i].rawAudio.getLengthInBytes() / format.getBytesPerSample();
+            lastEndPosition = startPos + items[i].rawAudio.lengthInBytes / format.bytesPerSample
 
             // AudioTrack全体の長さ(samples)を算出する
-            wholeLength = Math.max(wholeLength, lastEndPosition);
+            wholeLength = wholeLength.coerceAtLeast(lastEndPosition)
         }
 
         // 再生する音声のデータを構築する。
-        final byte[] bytes = new byte[wholeLength * format.getBytesPerSample()];
-        Arrays.fill(bytes, 0, bytes.length, (byte) 0);
-        final ByteBuffer data = ByteBuffer.wrap(bytes);
-        for (int i = 0; i < items.length; i++) {
-            writeAudio(data, format, startPosition[i], items[i].rawAudio);
+        val bytes = ByteArray(wholeLength * format.bytesPerSample)
+        Arrays.fill(bytes, 0, bytes.size, 0.toByte())
+        val data = ByteBuffer.wrap(bytes)
+        for (i in items.indices) {
+            writeAudio(data, format, startPosition[i], items[i].rawAudio)
         }
-
-        this.trackFormat = format;
-        this.trackData = data;
+        trackFormat = format
+        trackData = data
     }
 
     /**
      * 結合済みの音声を 1回再生します。
      *
-     * @throws IllegalStateException {@link #prepare()} がコールされていないか、音声の再生中です。
+     * @throws IllegalStateException [.prepare] がコールされていないか、音声の再生中です。
      * @throws RuntimeException      予期せぬエラーが発生しました。
      */
-    @Override
-    protected void playOnce() {
-        this.playWithAudioTrack();
-        // this.playWithMediaPlayer();
+    override fun playOnce() {
+        if (playerType == PlayerType.MEDIA_PLAYER) {
+            playWithMediaPlayer()
+        } else {
+            playWithAudioTrack()
+        }
     }
 
     /**
-     * {@link AudioTrack} やメモリを解放します。
+     * [android.media.AudioTrack], [android.media.MediaPlayer] やメモリを解放します。
      */
-    @Override
-    protected void cleanupResources() {
+    override fun cleanupResources() {
         try {
-            this.cleanupRawAudioPlayer();
-            this.cleanupMediaPlayer();
-            this.trackData = null;
-        } catch (Throwable tr) {
-            Log.w(TAG, "release: ERROR", tr);
+            cleanupRawAudioPlayer()
+            cleanupMediaPlayer()
+            trackData = null
+        } catch (tr: Throwable) {
+            Log.w(TAG, "release: ERROR", tr)
         }
     }
 
-    private static void writeAudio(ByteBuffer dest, RawAudioFormat format, int startPosition, RawAudio rawAudio) {
-        final int blockAlign = rawAudio.getFormat().getBytesPerSample();
-        final int encoding = rawAudio.getFormat().getAudioFormat().getEncoding();
-        final int samples = rawAudio.getLengthInBytes() / blockAlign;
-        final ByteBuffer source = ByteBuffer.wrap(rawAudio.getData());
-        switch (encoding) {
-            case AudioFormat.ENCODING_PCM_8BIT:
-                mergeBuf8(dest, startPosition, samples, format.getChannels(), source);
-                break;
-            case AudioFormat.ENCODING_PCM_16BIT:
-                mergeBuf16(dest, startPosition, samples, format.getChannels(), source);
-                break;
-            case AudioFormat.ENCODING_PCM_FLOAT:
-                mergeBufFloat(dest, startPosition, samples, format.getChannels(), source);
-                break;
-            default:
-                Log.e(TAG, "writeAudio: Unknown PCM encoding value: " + encoding);
-        }
-    }
-
-    private static void mergeBuf8(ByteBuffer dest, int startPosition, int samples, int channels, ByteBuffer source) {
-        int s;
-        int destPosition = startPosition;
-        for (int i = 0; i < samples * channels; i++) {
-            s = dest.get(destPosition) + source.get(i);
-            if (s > 127) {
-                s = 127;
-            } else if (s < -128) {
-                s = -128;
-            }
-            dest.put(destPosition, (byte) (s + 128));
-            destPosition++;
-        }
-    }
-
-    private static void mergeBuf16(ByteBuffer dest, int startPosition, int samples, int channels, ByteBuffer source) {
-        int s;
-        int destPosition = startPosition;
-        final ShortBuffer sourceBuffer = source.order(ByteOrder.nativeOrder()).asShortBuffer();
-        final ShortBuffer destBuffer = dest.order(ByteOrder.nativeOrder()).asShortBuffer();
-        for (int i = 0; i < samples * channels; i++) {
-            s = destBuffer.get(destPosition) + sourceBuffer.get(i);
-            if (s > Short.MAX_VALUE) {
-                // Log.i(TAG, "mergeBuf16: clipped (>32767)");
-                s = Short.MAX_VALUE;
-            } else if (s < Short.MIN_VALUE) {
-                // Log.i(TAG, "mergeBuf16: clipped (<-32768)");
-                s = Short.MIN_VALUE;
-            }
-            destBuffer.put(destPosition, (short) s);
-            destPosition++;
-        }
-    }
-
-    private static void mergeBufFloat(ByteBuffer dest, int startPosition, int samples, int channels, ByteBuffer source) {
-        float s;
-        int destPosition = startPosition;
-        final FloatBuffer sourceBuffer = source.order(ByteOrder.nativeOrder()).asFloatBuffer();
-        final FloatBuffer destBuffer = dest.order(ByteOrder.nativeOrder()).asFloatBuffer();
-        for (int i = 0; i < samples * channels; i++) {
-            s = destBuffer.get(destPosition) + sourceBuffer.get(i);
-            if (s > 1.0f) {
-                // Log.i(TAG, "mergeBufFloat: clipped (> 1.0)");
-                s = 1.0f;
-            } else if (s < -1.0f) {
-                // Log.i(TAG, "mergeBufFloat: clipped (< -1.0)");
-                s = -1.0f;
-            }
-            destBuffer.put(destPosition, s);
-            destPosition++;
-        }
-    }
-
-    private void playWithAudioTrack() {
-        this.rawAudioPlayer = new RawAudioPlayer();
-        this.rawAudioPlayer.setAudioUsage(this.audioUsage);
-        this.rawAudioPlayer.setContentType(this.contentType);
+    /**
+     * [android.media.AudioTrack] を使用して、音声を1回再生します。
+     */
+    private fun playWithAudioTrack() {
+        rawAudioPlayer = RawAudioPlayer()
+        rawAudioPlayer!!.audioUsage = audioUsageField
+        rawAudioPlayer!!.contentType = contentTypeField
         try {
-            this.rawAudioPlayer.play(new RawAudio(this.trackData.array(), this.trackFormat));
+            rawAudioPlayer!!.play(RawAudio(trackData!!.array(), trackFormat!!))
         } finally {
-            this.rawAudioPlayer = null;
+            rawAudioPlayer = null
         }
     }
 
-    private synchronized void cleanupRawAudioPlayer() {
-        // Log.d(TAG, "cleanupRawAudioPlayer: start");
-
+    /**
+     * [android.media.AudioTrack] やメモリを解放します。
+     */
+    @Synchronized
+    private fun cleanupRawAudioPlayer() {
+        Log.v(TAG, "cleanupRawAudioPlayer: start")
         try {
-            if (this.rawAudioPlayer != null) {
-                this.rawAudioPlayer.release();
-                this.rawAudioPlayer = null;
+            if (rawAudioPlayer != null) {
+                rawAudioPlayer!!.release()
+                rawAudioPlayer = null
             }
-        } catch (Throwable tr) {
-            Log.w(TAG, "cleanupRawAudioPlayer: ERROR", tr);
+        } catch (tr: Throwable) {
+            Log.w(TAG, "cleanupRawAudioPlayer: ERROR", tr)
         }
-
-        // Log.d(TAG, "cleanupRawAudioPlayer: end");
+        Log.v(TAG, "cleanupRawAudioPlayer: end")
     }
 
-    private void playWithMediaPlayer() {
-        this.mediaPlayer = new RawAudioMediaPlayer();
-        this.mediaPlayer.setAudioUsage(this.audioUsage);
-        this.mediaPlayer.setContentType(this.contentType);
+    /**
+     * [android.media.MediaPlayer] を使用して、音声を1回再生します。
+     */
+    private fun playWithMediaPlayer() {
+        mediaPlayer = RawAudioMediaPlayer()
+        mediaPlayer!!.audioUsage = audioUsageField
+        mediaPlayer!!.contentType = contentTypeField
         try {
-            this.mediaPlayer.play(new RawAudio(this.trackData.array(), this.trackFormat));
+            mediaPlayer!!.play(RawAudio(trackData!!.array(), trackFormat!!))
         } finally {
-            this.mediaPlayer = null;
+            mediaPlayer = null
         }
     }
 
-    private synchronized void cleanupMediaPlayer() {
-        // Log.d(TAG, "cleanupMediaPlayer: start");
-
+    /**
+     * [android.media.MediaPlayer] やメモリを解放します。
+     */
+    @Synchronized
+    private fun cleanupMediaPlayer() {
+        Log.v(TAG, "cleanupMediaPlayer: start")
         try {
-            if (this.mediaPlayer != null) {
-                this.mediaPlayer.release();
-                this.mediaPlayer = null;
+            if (mediaPlayer != null) {
+                mediaPlayer!!.release()
+                mediaPlayer = null
             }
-        } catch (Throwable tr) {
-            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr);
+        } catch (tr: Throwable) {
+            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr)
+        }
+        Log.v(TAG, "cleanupMediaPlayer: end")
+    }
+
+    companion object {
+        /**
+         * Tag for log
+         */
+        private const val TAG = "ImoMediaLib.RawAudioSeq"
+
+        private fun writeAudio(
+            dest: ByteBuffer,
+            format: RawAudioFormat,
+            startPosition: Int,
+            rawAudio: RawAudio
+        ) {
+            val blockAlign = rawAudio.format.bytesPerSample
+            val encoding = rawAudio.format.audioFormat.encoding
+            val samples = rawAudio.lengthInBytes / blockAlign
+            val source = ByteBuffer.wrap(rawAudio.data)
+            when (encoding) {
+                AudioFormat.ENCODING_PCM_8BIT -> mergeBuf8(
+                    dest,
+                    startPosition,
+                    samples,
+                    format.channels,
+                    source
+                )
+                AudioFormat.ENCODING_PCM_16BIT -> mergeBuf16(
+                    dest,
+                    startPosition,
+                    samples,
+                    format.channels,
+                    source
+                )
+                AudioFormat.ENCODING_PCM_FLOAT -> mergeBufFloat(
+                    dest,
+                    startPosition,
+                    samples,
+                    format.channels,
+                    source
+                )
+                else -> Log.e(TAG) { "writeAudio: Unknown PCM encoding value: $encoding" }
+            }
         }
 
-        // Log.d(TAG, "cleanupMediaPlayer: end");
+        private fun mergeBuf8(
+            dest: ByteBuffer,
+            startPosition: Int,
+            samples: Int,
+            channels: Int,
+            source: ByteBuffer
+        ) {
+            var s: Int
+            var destPosition = startPosition
+            for (i in 0 until samples * channels) {
+                s = dest[destPosition] + source[i]
+                if (s > 127) {
+                    s = 127
+                } else if (s < -128) {
+                    s = -128
+                }
+                dest.put(destPosition, (s + 128).toByte())
+                destPosition++
+            }
+        }
+
+        private fun mergeBuf16(
+            dest: ByteBuffer,
+            startPosition: Int,
+            samples: Int,
+            channels: Int,
+            source: ByteBuffer
+        ) {
+            var s: Int
+            var destPosition = startPosition
+            val sourceBuffer = source.order(ByteOrder.nativeOrder()).asShortBuffer()
+            val destBuffer = dest.order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (i in 0 until samples * channels) {
+                s = destBuffer[destPosition] + sourceBuffer[i]
+                if (s > Short.MAX_VALUE) {
+                    // Log.i(TAG, "mergeBuf16: clipped (>32767)");
+                    s = Short.MAX_VALUE.toInt()
+                } else if (s < Short.MIN_VALUE) {
+                    // Log.i(TAG, "mergeBuf16: clipped (<-32768)");
+                    s = Short.MIN_VALUE.toInt()
+                }
+                destBuffer.put(destPosition, s.toShort())
+                destPosition++
+            }
+        }
+
+        private fun mergeBufFloat(
+            dest: ByteBuffer,
+            startPosition: Int,
+            samples: Int,
+            channels: Int,
+            source: ByteBuffer
+        ) {
+            var s: Float
+            var destPosition = startPosition
+            val sourceBuffer = source.order(ByteOrder.nativeOrder()).asFloatBuffer()
+            val destBuffer = dest.order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (i in 0 until samples * channels) {
+                s = destBuffer[destPosition] + sourceBuffer[i]
+                if (s > 1.0f) {
+                    // Log.i(TAG, "mergeBufFloat: clipped (> 1.0)");
+                    s = 1.0f
+                } else if (s < -1.0f) {
+                    // Log.i(TAG, "mergeBufFloat: clipped (< -1.0)");
+                    s = -1.0f
+                }
+                destBuffer.put(destPosition, s)
+                destPosition++
+            }
+        }
     }
 }

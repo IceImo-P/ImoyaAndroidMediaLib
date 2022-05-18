@@ -111,15 +111,15 @@ class AudioDecoder {
             (0 until extractor.trackCount).forEach {
                 val format = extractor.getTrackFormat(it)
                 val mimeType = format.getString(MediaFormat.KEY_MIME)
-//                Log.d(TAG, "checkFormat: MIME type for track $it is: $mimeType")
+                Log.v(TAG) { "checkFormat: MIME type for track $it is: $mimeType" }
                 if (mimeType != null && mimeType.startsWith("audio/")) {
                     track = it
-//                    Log.d(TAG, "checkFormat: Audio track found: $it")
+                    Log.v(TAG) { "checkFormat: Audio track found: $it" }
                     return@loop
                 }
             }
         }
-        Log.d(TAG, "checkFormat: Audio track is: $track")
+        Log.v(TAG) { "checkFormat: Audio track is: $track" }
         require(track >= 0) { "Illegal media type: No audio track at source" }
         extractor.selectTrack(track)
     }
@@ -128,55 +128,65 @@ class AudioDecoder {
      * 変換を実行します。
      */
     fun convert(callback: AudioDecoderCallback) {
-        Log.d(TAG, "convert: start")
-        val format = extractor.getTrackFormat(track)
-        val mimeType = format.getString(MediaFormat.KEY_MIME)
+        try {
+            Log.v(TAG, "convert: start")
+            val format = extractor.getTrackFormat(track)
+            val mimeType = format.getString(MediaFormat.KEY_MIME)
 
-        val decoder = MediaCodec.createDecoderByType(mimeType!!)
-        decoder.setCallback(CodecCallback(ConversionContext(this, callback)))
-        decoder.configure(format, null, null, 0)
-        outputFormat = decoder.outputFormat
-        pcmEncoding = AudioUtility.getAudioEncoding(outputFormat)
-        Log.d(
-            TAG,
-            "convert: Output = ${outputFormat.getString(MediaFormat.KEY_MIME)}, $outputFormat"
-        )
-        decoder.start()
-        Log.d(TAG, "convert: end")
+            val decoder = MediaCodec.createDecoderByType(mimeType!!)
+            decoder.setCallback(CodecCallback(ConversionContext(this, callback)))
+            decoder.configure(format, null, null, 0)
+            outputFormat = decoder.outputFormat
+            pcmEncoding = AudioUtility.getAudioEncoding(outputFormat)
+            Log.v(TAG) { "convert: Output = $outputFormat" }
+            decoder.start()
+            Log.v(TAG, "convert: end")
+        } catch (e: Exception) {
+            callback.onError(this, e)
+        }
     }
 
+    /**
+     * [MediaCodec.Callback] の実装
+     */
     private inner class CodecCallback(val context: ConversionContext) : MediaCodec.Callback() {
+        /**
+         * デコード済みオーディオデータの一時保存バッファ
+         */
         val destination = ByteArrayOutputStream()
 
         override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {
-            // 入力ファイルよりオーディオデータを読み取り入力バッファーへ設定する
-//            Log.d(TAG, "onInputBufferAvailable: start. index = $index")
-            val buffer = codec.getInputBuffer(index)
-            if (buffer != null) {
-//                buffer.clear()
-                val read = extractor.readSampleData(buffer, 0)
-                if (read < 0) {
-                    // ファイル終端へ達した場合は終端フラグをセットする
-                    Log.d(TAG, "Input EOF")
-                    codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                } else {
-//                    Log.d(TAG, "Input length = $read")
-                    val sampleTime = extractor.sampleTime
-                    if (extractor.advance()) {
-                        codec.queueInputBuffer(index, 0, read, sampleTime, 0)
+            try {
+                // 入力ファイルよりオーディオデータを読み取り入力バッファーへ設定する
+                Log.v(TAG) { "onInputBufferAvailable: start. index = $index" }
+                val buffer = codec.getInputBuffer(index)
+                if (buffer != null) {
+                    val read = extractor.readSampleData(buffer, 0)
+                    if (read < 0) {
+                        // ファイル終端へ達した場合は終端フラグをセットする
+                        Log.v(TAG, "Input EOF")
+                        codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                     } else {
-                        Log.d(TAG, "Input EOF (with data)")
-                        codec.queueInputBuffer(
-                            index,
-                            0,
-                            read,
-                            sampleTime,
-                            MediaCodec.BUFFER_FLAG_END_OF_STREAM
-                        )
+                        Log.v(TAG) { "Input length = $read" }
+                        val sampleTime = extractor.sampleTime
+                        if (extractor.advance()) {
+                            codec.queueInputBuffer(index, 0, read, sampleTime, 0)
+                        } else {
+                            Log.v(TAG, "Input EOF (with data)")
+                            codec.queueInputBuffer(
+                                index,
+                                0,
+                                read,
+                                sampleTime,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                            )
+                        }
                     }
+                } else {
+                    Log.w(TAG, "onInputBufferAvailable: No buffer available(MediaCodec returned null)")
                 }
-            } else {
-                Log.w(TAG, "onInputBufferAvailable: No buffer available(MediaCodec returned null)")
+            } catch (e: Exception) {
+                errorProcess(codec, e)
             }
         }
 
@@ -185,55 +195,60 @@ class AudioDecoder {
             index: Int,
             info: MediaCodec.BufferInfo
         ) {
-//            Log.d(TAG, "onOutputBufferAvailable: start. index = $index")
-            val buffer = codec.getOutputBuffer(index)
-            if (buffer != null) {
-                when (pcmEncoding) {
-                    AudioFormat.ENCODING_PCM_8BIT -> output8bit(buffer)
-                    AudioFormat.ENCODING_PCM_16BIT -> output16bit(buffer)
-                    AudioFormat.ENCODING_PCM_FLOAT -> outputFloat(buffer)
-                    else -> throw IllegalArgumentException("Unexpected PCM encoding: $pcmEncoding")
+            Log.v(TAG) { "onOutputBufferAvailable: start. index = $index" }
+            try {
+                val buffer = codec.getOutputBuffer(index)
+                if (buffer != null) {
+                    when (pcmEncoding) {
+                        AudioFormat.ENCODING_PCM_8BIT -> output8bit(buffer)
+                        AudioFormat.ENCODING_PCM_16BIT -> output16bit(buffer)
+                        AudioFormat.ENCODING_PCM_FLOAT -> outputFloat(buffer)
+                        else -> throw IllegalArgumentException("Unexpected PCM encoding: $pcmEncoding")
+                    }
+                    codec.releaseOutputBuffer(index, false)
+                } else {
+                    Log.w(
+                        TAG,
+                        "onOutputBufferAvailable: No buffer available(MediaCodec returned null)"
+                    )
                 }
-                codec.releaseOutputBuffer(index, false)
-            } else {
-                Log.w(TAG, "onOutputBufferAvailable: No buffer available(MediaCodec returned null)")
-            }
 
-            // 終端か?
-            if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                // 終端である場合
-                Log.d(TAG, "Output EOF")
+                // 終端か?
+                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                    // 終端である場合
+                    Log.v(TAG, "Output EOF")
 
-                destination.close()
-                codec.stop()
-                codec.release()
-                extractor.release()
+                    destination.close()
+                    codec.stop()
+                    codec.release()
+                    extractor.release()
 
-                // 変換完了時コールバックをコール
-                context.callback.onEnd(context.decoder, destination.toByteArray(), outputFormat)
+                    // 変換完了時コールバックをコール
+                    context.callback.onEnd(context.decoder, destination.toByteArray(), outputFormat)
+                }
+            } catch (e: Exception) {
+                errorProcess(codec, e)
             }
         }
 
         override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-            Log.d(TAG, "Error: $e")
-
-            destination.close()
-            codec.stop()
-            codec.release()
-            extractor.release()
-
-            // エラー発生時コールバックをコール
-            context.callback.onError(context.decoder, e)
+            errorProcess(codec, e)
         }
 
         override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
-            Log.w(TAG, "Changing media format function is not supported.")
+//            Log.w(TAG, "Changing media format function is not supported.")
         }
 
+        /**
+         * 8-bit PCM を出力バッファへコピーします。
+         */
         private fun output8bit(buffer: ByteBuffer) {
             destination.write(buffer.array())
         }
 
+        /**
+         * 16-bit PCM を出力バッファへコピーします。
+         */
         private fun output16bit(buffer: ByteBuffer) {
             val samples: ShortBuffer = buffer.order(ByteOrder.nativeOrder()).asShortBuffer()
             val writableBuffer = ByteBuffer.allocate(samples.remaining() * 2)
@@ -245,6 +260,9 @@ class AudioDecoder {
             destination.write(writableBuffer.array())
         }
 
+        /**
+         * Float PCM を出力バッファへコピーします。
+         */
         private fun outputFloat(buffer: ByteBuffer) {
             val samples: FloatBuffer = buffer.order(ByteOrder.nativeOrder()).asFloatBuffer()
             val writableBuffer = ByteBuffer.allocate(samples.remaining() * 2)
@@ -254,6 +272,24 @@ class AudioDecoder {
                 convertedSamples.put(samples.get())
             }
             destination.write(writableBuffer.array())
+        }
+
+        /**
+         * エラー発生時の処理
+         */
+        private fun errorProcess(codec: MediaCodec, e: Exception) {
+            Log.i(TAG) { "Error: $e" }
+
+            try {
+                destination.close()
+                codec.stop()
+                codec.release()
+                extractor.release()
+            } catch (e: Exception) {
+            }
+
+            // エラー発生時コールバックをコール
+            context.callback.onError(context.decoder, e)
         }
     }
 

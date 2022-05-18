@@ -1,18 +1,13 @@
-package net.imoya.android.media;
+package net.imoya.android.media
 
-public class MediaFormatException extends RuntimeException {
-    public MediaFormatException() {
-    }
+import java.lang.RuntimeException
 
-    public MediaFormatException(String message) {
-        super(message);
-    }
-
-    public MediaFormatException(Throwable cause) {
-        super(cause);
-    }
-
-    public MediaFormatException(Throwable cause, String message) {
-        super(message, cause);
-    }
+class MediaFormatException : RuntimeException {
+    @Suppress("unused")
+    constructor()
+    constructor(message: String?) : super(message)
+    @Suppress("unused")
+    constructor(cause: Throwable?) : super(cause)
+    @Suppress("unused")
+    constructor(cause: Throwable?, message: String?) : super(message, cause)
 }

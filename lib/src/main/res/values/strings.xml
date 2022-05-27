@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="imoya_android_media_log_level" translatable="false" tools:override="true">none</string>
+</resources>

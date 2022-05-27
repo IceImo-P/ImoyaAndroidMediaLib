@@ -1,0 +1,2 @@
+configurations.maybeCreate("default")
+artifacts.add("default", file('imoya-android-util-release-1.6.0.aar'))

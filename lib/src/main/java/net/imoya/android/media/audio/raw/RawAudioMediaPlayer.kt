@@ -1,10 +1,26 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio.raw
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import net.imoya.android.media.MediaLog
 import net.imoya.android.media.OnMemoryDataSource
 import net.imoya.android.media.audio.wav.RawToWavConverter
-import net.imoya.android.util.Log
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.Condition
@@ -88,19 +104,19 @@ class RawAudioMediaPlayer {
                     try {
                         condition.await(1000, TimeUnit.MILLISECONDS)
                     } catch (e: InterruptedException) {
-                        Log.d(TAG, "playWithMediaPlayer: interrupted", e)
+                        MediaLog.d(TAG, "playWithMediaPlayer: interrupted", e)
                     }
                 }
             }
         } catch (e: IOException) {
-            Log.v(TAG, "play: Exception at play", e)
+            MediaLog.v(TAG, "play: Exception at play", e)
         } finally {
             cleanupMediaPlayer()
         }
     }
 
     private fun cleanupMediaPlayer() {
-        Log.v(TAG, "cleanupMediaPlayer: start")
+        MediaLog.v(TAG, "cleanupMediaPlayer: start")
         try {
             lock.withLock {
                 val mp = mediaPlayer
@@ -109,7 +125,7 @@ class RawAudioMediaPlayer {
                         try {
                             mp.stop()
                         } catch (ex: IllegalStateException) {
-                            Log.i(TAG, "cleanupMediaPlayer: ERROR on stop MediaPlayer", ex)
+                            MediaLog.i(TAG, "cleanupMediaPlayer: ERROR on stop MediaPlayer", ex)
                         }
                     }
                     mp.release()
@@ -118,10 +134,10 @@ class RawAudioMediaPlayer {
                 }
             }
         } catch (tr: Throwable) {
-            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr)
+            MediaLog.w(TAG, "cleanupMediaPlayer: ERROR", tr)
         }
 
-        Log.v(TAG, "cleanupMediaPlayer: end")
+        MediaLog.v(TAG, "cleanupMediaPlayer: end")
     }
 
     companion object {

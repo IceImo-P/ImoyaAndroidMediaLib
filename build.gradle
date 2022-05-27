@@ -21,15 +21,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-
-        maven {
-            name = "GitHubPackages-ImoyaAndroidUtil"
-            url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidUtil")
-            credentials {
-                username = githubProperties.getProperty("imoya.gpr.user") ?: System.getenv("IMOYA_GPR_USER")
-                password = githubProperties.getProperty("imoya.gpr.token") ?: System.getenv("IMOYA_GPR_TOKEN")
-            }
-        }
     }
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {

@@ -1,12 +1,29 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio.raw
 
 import android.media.AudioFormat
+import net.imoya.android.media.MediaLog
 import net.imoya.android.media.audio.AudioSequencer
-import net.imoya.android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
-import kotlin.jvm.Synchronized
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * 複数の [RawAudio] 音声データを結合し、連続再生する機能を提供します。
@@ -53,6 +70,11 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
      * 結合済み音声データを再生する [RawAudioMediaPlayer]
      */
     private var mediaPlayer: RawAudioMediaPlayer? = null
+
+    /**
+     * スレッド制御用 [ReentrantLock]
+     */
+    private val lock: ReentrantLock = ReentrantLock()
 
     override fun createPlayableSequence() {
         val items = sequence.toTypedArray()
@@ -114,7 +136,7 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
             cleanupMediaPlayer()
             trackData = null
         } catch (tr: Throwable) {
-            Log.w(TAG, "release: ERROR", tr)
+            MediaLog.w(TAG, "release: ERROR", tr)
         }
     }
 
@@ -122,11 +144,12 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
      * [android.media.AudioTrack] を使用して、音声を1回再生します。
      */
     private fun playWithAudioTrack() {
-        rawAudioPlayer = RawAudioPlayer()
-        rawAudioPlayer!!.audioUsage = audioUsageField
-        rawAudioPlayer!!.contentType = contentTypeField
+        val player = RawAudioPlayer()
+        player.audioUsage = audioUsageField
+        player.contentType = contentTypeField
+        rawAudioPlayer = player
         try {
-            rawAudioPlayer!!.play(RawAudio(trackData!!.array(), trackFormat!!))
+            player.play(RawAudio(trackData!!.array(), trackFormat!!))
         } finally {
             rawAudioPlayer = null
         }
@@ -135,29 +158,32 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
     /**
      * [android.media.AudioTrack] やメモリを解放します。
      */
-    @Synchronized
     private fun cleanupRawAudioPlayer() {
-        Log.v(TAG, "cleanupRawAudioPlayer: start")
-        try {
-            if (rawAudioPlayer != null) {
-                rawAudioPlayer!!.release()
-                rawAudioPlayer = null
+        MediaLog.v(TAG, "cleanupRawAudioPlayer: start")
+        lock.withLock<Unit> {
+            try {
+                val player = rawAudioPlayer
+                if (player != null) {
+                    player.release()
+                    rawAudioPlayer = null
+                }
+            } catch (tr: Throwable) {
+                MediaLog.w(TAG, "cleanupRawAudioPlayer: ERROR", tr)
             }
-        } catch (tr: Throwable) {
-            Log.w(TAG, "cleanupRawAudioPlayer: ERROR", tr)
         }
-        Log.v(TAG, "cleanupRawAudioPlayer: end")
+        MediaLog.v(TAG, "cleanupRawAudioPlayer: end")
     }
 
     /**
      * [android.media.MediaPlayer] を使用して、音声を1回再生します。
      */
     private fun playWithMediaPlayer() {
-        mediaPlayer = RawAudioMediaPlayer()
-        mediaPlayer!!.audioUsage = audioUsageField
-        mediaPlayer!!.contentType = contentTypeField
+        val player = RawAudioMediaPlayer()
+        player.audioUsage = audioUsageField
+        player.contentType = contentTypeField
+        mediaPlayer = player
         try {
-            mediaPlayer!!.play(RawAudio(trackData!!.array(), trackFormat!!))
+            player.play(RawAudio(trackData!!.array(), trackFormat!!))
         } finally {
             mediaPlayer = null
         }
@@ -168,16 +194,19 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
      */
     @Synchronized
     private fun cleanupMediaPlayer() {
-        Log.v(TAG, "cleanupMediaPlayer: start")
-        try {
-            if (mediaPlayer != null) {
-                mediaPlayer!!.release()
-                mediaPlayer = null
+        MediaLog.v(TAG, "cleanupMediaPlayer: start")
+        lock.withLock<Unit> {
+            try {
+                val player = mediaPlayer
+                if (player != null) {
+                    player.release()
+                    mediaPlayer = null
+                }
+            } catch (tr: Throwable) {
+                MediaLog.w(TAG, "cleanupMediaPlayer: ERROR", tr)
             }
-        } catch (tr: Throwable) {
-            Log.w(TAG, "cleanupMediaPlayer: ERROR", tr)
         }
-        Log.v(TAG, "cleanupMediaPlayer: end")
+        MediaLog.v(TAG, "cleanupMediaPlayer: end")
     }
 
     companion object {
@@ -218,7 +247,7 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
                     format.channels,
                     source
                 )
-                else -> Log.e(TAG) { "writeAudio: Unknown PCM encoding value: $encoding" }
+                else -> MediaLog.e(TAG) { "writeAudio: Unknown PCM encoding value: $encoding" }
             }
         }
 
@@ -257,10 +286,10 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
             for (i in 0 until samples * channels) {
                 s = destBuffer[destPosition] + sourceBuffer[i]
                 if (s > Short.MAX_VALUE) {
-                    // Log.i(TAG, "mergeBuf16: clipped (>32767)");
+//                    MediaLog.d(TAG, "mergeBuf16: clipped (>32767)");
                     s = Short.MAX_VALUE.toInt()
                 } else if (s < Short.MIN_VALUE) {
-                    // Log.i(TAG, "mergeBuf16: clipped (<-32768)");
+//                    MediaLog.d(TAG, "mergeBuf16: clipped (<-32768)");
                     s = Short.MIN_VALUE.toInt()
                 }
                 destBuffer.put(destPosition, s.toShort())
@@ -282,10 +311,10 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
             for (i in 0 until samples * channels) {
                 s = destBuffer[destPosition] + sourceBuffer[i]
                 if (s > 1.0f) {
-                    // Log.i(TAG, "mergeBufFloat: clipped (> 1.0)");
+//                    MediaLog.d(TAG, "mergeBufFloat: clipped (> 1.0)");
                     s = 1.0f
                 } else if (s < -1.0f) {
-                    // Log.i(TAG, "mergeBufFloat: clipped (< -1.0)");
+//                    MediaLog.d(TAG, "mergeBufFloat: clipped (< -1.0)");
                     s = -1.0f
                 }
                 destBuffer.put(destPosition, s)

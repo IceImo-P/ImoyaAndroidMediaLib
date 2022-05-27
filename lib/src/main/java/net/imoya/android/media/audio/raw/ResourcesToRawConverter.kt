@@ -1,9 +1,26 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio.raw
 
 import android.content.Context
 import android.media.MediaFormat
+import net.imoya.android.media.MediaLog
 import net.imoya.android.media.audio.AudioDecoder
-import net.imoya.android.util.Log
+
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
@@ -82,25 +99,25 @@ class ResourcesToRawConverter(private val context: Context, private val resource
     ) :
         AudioDecoder.AudioDecoderCallback {
         override fun onEnd(decoder: AudioDecoder, data: ByteArray, format: MediaFormat) {
-//            Log.v(TAG) { "callback.onEnd[$id]: start" }
+//            MediaLog.v(TAG) { "callback.onEnd[$id]: start" }
             oneLock.withLock {
-//                Log.v(TAG) { "callback.onEnd[$id]: entering lock" }
+//                MediaLog.v(TAG) { "callback.onEnd[$id]: entering lock" }
                 ctx.map[id] = RawAudio(data, format)
-//                Log.v(TAG) { "callback.onEnd[$id]: signalAll" }
+//                MediaLog.v(TAG) { "callback.onEnd[$id]: signalAll" }
                 oneCondition.signalAll()
             }
-//            Log.v(TAG) { "callback.onEnd[$id]: end" }
+//            MediaLog.v(TAG) { "callback.onEnd[$id]: end" }
         }
 
         override fun onError(decoder: AudioDecoder, e: java.lang.Exception) {
-//            Log.v(TAG) { "callback.onError[$id]: start: $e" }
+//            MediaLog.v(TAG) { "callback.onError[$id]: start: $e" }
             oneLock.withLock {
-//                Log.v(TAG) { "callback.onError[$id]: entering lock" }
+//                MediaLog.v(TAG) { "callback.onError[$id]: entering lock" }
                 ctx.errors.add(e)
-//                Log.v(TAG) { "callback.onError[$id]: signalAll" }
+//                MediaLog.v(TAG) { "callback.onError[$id]: signalAll" }
                 oneCondition.signalAll()
             }
-//            Log.v(TAG) { "callback.onError[$id]: end" }
+//            MediaLog.v(TAG) { "callback.onError[$id]: end" }
         }
     }
 
@@ -119,7 +136,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
         private lateinit var localCondition: Condition
 
         override fun run() {
-            Log.v(TAG) {
+            MediaLog.v(TAG) {
                 "convertOne: decoding $id, thread = ${Thread.currentThread().id}"
             }
 
@@ -139,7 +156,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
                 ctx.condition.signalAll()
             }
 
-            Log.v(TAG) { "convertOne: end. thread = ${Thread.currentThread().id}" }
+            MediaLog.v(TAG) { "convertOne: end. thread = ${Thread.currentThread().id}" }
         }
     }
 
@@ -155,17 +172,17 @@ class ResourcesToRawConverter(private val context: Context, private val resource
 
         if (ctx.errors.size > 0) {
             (0 until ctx.errors.size).forEach {
-                Log.w(TAG) { "convert: error[$it]: ${ctx.errors[it]}" }
+                MediaLog.w(TAG) { "convert: error[$it]: ${ctx.errors[it]}" }
             }
             throw ctx.errors[0]
         } else {
-            Log.v(TAG, "convert: success")
+            MediaLog.v(TAG, "convert: success")
             resultCache = resourceIds.map { ctx.map[it]!! }.toTypedArray()
         }
     }
 
     private fun executeAndWait() {
-        Log.v(TAG) {
+        MediaLog.v(TAG) {
             "executeAndWait: start parallel decoding: thread = ${Thread.currentThread().id}"
         }
         val maxThreads = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
@@ -174,7 +191,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
             executorService.execute(ConvertOne(it, ctx))
         }
 
-        Log.v(TAG, "convertResourcesToRawAudio: waiting")
+        MediaLog.v(TAG, "convertResourcesToRawAudio: waiting")
         waitForComplete()
 
         executorService.shutdownNow()
@@ -184,7 +201,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
         ctx.lock.withLock {
             while (ctx.errors.size == 0 && ctx.map.size < idSet.size) {
                 ctx.condition.await()
-                Log.v(TAG) {
+                MediaLog.v(TAG) {
                     "convertResourcesToRawAudio: errors.size = ${
                         ctx.errors.size
                     }, out.size = ${

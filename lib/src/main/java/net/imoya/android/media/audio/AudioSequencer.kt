@@ -1,8 +1,23 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio
 
-import net.imoya.android.util.Log
 import android.media.AudioAttributes
-import java.util.ArrayList
+import net.imoya.android.media.MediaLog
 
 /**
  * 複数の音声データを結合し、連続再生する機能の abstract です。
@@ -25,8 +40,12 @@ abstract class AudioSequencer<T : AudioSequenceItem> {
      * 音声の用途を表す [AudioAttributes].USAGE_* 値
      */
     var audioUsage: Int
-        get() { return audioUsageField }
-        set(value) { audioUsageField = value }
+        get() {
+            return audioUsageField
+        }
+        set(value) {
+            audioUsageField = value
+        }
 
     /**
      * 音声の種別を表す [AudioAttributes].CONTENT_TYPE_* 値
@@ -38,8 +57,12 @@ abstract class AudioSequencer<T : AudioSequenceItem> {
      * 音声の種別を表す [AudioAttributes].CONTENT_TYPE_* 値
      */
     var contentType: Int
-        get() { return contentTypeField }
-        set(value) { contentTypeField = value }
+        get() {
+            return contentTypeField
+        }
+        set(value) {
+            contentTypeField = value
+        }
 
     /**
      * 音声データのリスト
@@ -104,7 +127,7 @@ abstract class AudioSequencer<T : AudioSequenceItem> {
         } finally {
             state = State.PREPARED
         }
-        Log.v(TAG, "play: complete")
+        MediaLog.v(TAG, "play: complete")
     }
 
     /**

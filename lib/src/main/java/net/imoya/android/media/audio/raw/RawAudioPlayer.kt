@@ -1,10 +1,26 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio.raw
 
 import android.media.AudioAttributes
 import android.media.AudioTrack
+import net.imoya.android.media.MediaLog
 import kotlin.jvm.Synchronized
 import net.imoya.android.media.audio.AudioTrackUtility
-import net.imoya.android.util.Log
 import java.lang.Exception
 import java.lang.IllegalStateException
 import java.nio.ByteBuffer
@@ -48,7 +64,7 @@ class RawAudioPlayer {
         val format = audio.format
         val data = ByteBuffer.wrap(audio.data)
         val bytesPerSample = format.bytesPerSample
-        Log.v(TAG) { "play: format = $format" }
+        MediaLog.v(TAG) { "play: format = $format" }
 
         // AudioTrack を構築する
         var bufferSize = AudioTrack.getMinBufferSize(
@@ -56,11 +72,11 @@ class RawAudioPlayer {
             AudioTrackUtility.getChannelConfig(format.channels),
             AudioTrackUtility.getAudioEncodingForBytesPerSample(format.bytesPerSampleAtChannel)
         )
-        Log.v(TAG) { "play: minBufferSize = $bufferSize" }
+        MediaLog.v(TAG) { "play: minBufferSize = $bufferSize" }
         if (bufferSize % bytesPerSample != 0) {
             bufferSize += bytesPerSample - bufferSize % bytesPerSample
         }
-        Log.v(TAG) { "play: bufferSize = $bufferSize" }
+        MediaLog.v(TAG) { "play: bufferSize = $bufferSize" }
         track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -74,10 +90,10 @@ class RawAudioPlayer {
             .build()
 
         // 最初のデータをバッファに書き込む。
-        Log.v(TAG, "play: Writing data to AudioTrack")
+        MediaLog.v(TAG, "play: Writing data to AudioTrack")
         val writtenFirst = track.write(data, data.array().size, AudioTrack.WRITE_NON_BLOCKING)
-        Log.v(TAG) { "play: writtenFirst = $writtenFirst" }
-        Log.v(TAG, "play: Starting AudioTrack")
+//        MediaLog.v(TAG) { "play: writtenFirst = $writtenFirst" }
+        MediaLog.v(TAG, "play: Starting AudioTrack")
         try {
             // 再生開始
             track.play()
@@ -86,13 +102,13 @@ class RawAudioPlayer {
                 var endSuccessfully = true
                 do {
                     if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                        Log.v(TAG, "play: AudioTrack maybe stopped")
+                        MediaLog.v(TAG, "play: AudioTrack maybe stopped")
                         break
                     }
-                    Log.v(TAG) { "play: Writing data to AudioTrack... ($written - )" }
+//                    MediaLog.v(TAG) { "play: Writing data to AudioTrack... ($written - )" }
                     val w =
                         track.write(data, data.array().size - written, AudioTrack.WRITE_BLOCKING)
-                    Log.v(TAG) { "play: Written $w bytes" }
+//                    MediaLog.v(TAG) { "play: Written $w bytes" }
                     if (w <= 0) {
                         endSuccessfully = false
                         break
@@ -100,7 +116,7 @@ class RawAudioPlayer {
                         written += w
                     }
                 } while (written < data.array().size)
-                Log.v(TAG, "play: complete to write")
+                MediaLog.v(TAG, "play: complete to write")
 
                 // エラー終了していなければ、バッファの中身が再生されるまで待つ
                 if (endSuccessfully) {
@@ -111,7 +127,7 @@ class RawAudioPlayer {
                 waitForBufferLength(format, bufferSize)
             }
         } catch (e: Exception) {
-            Log.v(TAG, "play: Exception at play", e)
+            MediaLog.v(TAG, "play: Exception at play", e)
         } finally {
             // AudioTrack の後片付け
             cleanupAudioTrack()
@@ -120,37 +136,37 @@ class RawAudioPlayer {
 
     @Synchronized
     private fun waitForBufferLength(format: RawAudioFormat, bufferSize: Int) {
-        // Log.d(TAG, "waitForBufferLength: start");
+        MediaLog.v(TAG, "waitForBufferLength: start")
         try {
             val millis = bufferSize / format.bytesPerSample * 1000L / format.samplesPerSecond + 1
-            Log.v(TAG) { "waitForBufferLength: bufSize = $bufferSize, time = $millis" }
+            MediaLog.v(TAG) { "waitForBufferLength: bufSize = $bufferSize, time = $millis" }
             Thread.sleep(millis)
         } catch (ex: InterruptedException) {
-            Log.v(TAG, ex)
+            MediaLog.v(TAG, ex)
         }
-        Log.v(TAG, "waitForBufferLength: end")
+        MediaLog.v(TAG, "waitForBufferLength: end")
     }
 
     /**
      * [AudioTrack] を安全に停止し解放します。
      */
     private fun cleanupAudioTrack() {
-        Log.v(TAG, "cleanupAudioTrack: start")
+        MediaLog.v(TAG, "cleanupAudioTrack: start")
         try {
             if (this::track.isInitialized) {
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                     try {
                         track.stop()
                     } catch (ex: IllegalStateException) {
-                        Log.i(TAG, "cleanupAudioTrack: ERROR on stop AudioTrack", ex)
+                        MediaLog.i(TAG, "cleanupAudioTrack: ERROR on stop AudioTrack", ex)
                     }
                 }
                 track.release()
             }
         } catch (tr: Throwable) {
-            Log.w(TAG, "cleanupAudioTrack: ERROR", tr)
+            MediaLog.w(TAG, "cleanupAudioTrack: ERROR", tr)
         }
-        Log.v(TAG, "cleanupAudioTrack: end")
+        MediaLog.v(TAG, "cleanupAudioTrack: end")
     }
 
     companion object {

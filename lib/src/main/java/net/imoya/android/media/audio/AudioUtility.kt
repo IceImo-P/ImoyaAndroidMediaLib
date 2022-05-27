@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio
 
 import android.content.Context
@@ -5,9 +21,9 @@ import android.media.AudioFormat
 import android.media.MediaFormat
 import android.os.Build
 import net.imoya.android.media.MediaFormatException
+import net.imoya.android.media.MediaLog
 import net.imoya.android.media.audio.AudioDecoder.AudioDecoderCallback
 import net.imoya.android.media.audio.raw.RawAudio
-import net.imoya.android.util.Log
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -18,7 +34,7 @@ object AudioUtility {
     @Suppress("unused")
     @Deprecated("Use ResourcesToRawConverter")
     fun convertResourcesToRawAudio(context: Context, resourceIds: IntArray): Array<RawAudio> {
-        Log.v(TAG, "convertResourcesToRawAudio: start")
+        MediaLog.v(TAG, "convertResourcesToRawAudio: start")
 
         // 重複を除いたリソースIDセットを作成する
         val idSet: MutableSet<Int> = HashSet(resourceIds.size)
@@ -31,39 +47,37 @@ object AudioUtility {
 
         class Callback(private val id: Int) : AudioDecoderCallback {
             override fun onEnd(decoder: AudioDecoder, data: ByteArray, format: MediaFormat) {
-                Log.d(TAG, "convertResourcesToRawAudio.onEnd[$id]: start")
+                MediaLog.v(TAG) { "convertResourcesToRawAudio.onEnd[$id]: start" }
                 lock.withLock {
-                    Log.d(TAG, "convertResourcesToRawAudio.onEnd[$id]: entering lock")
+                    MediaLog.v(TAG) { "convertResourcesToRawAudio.onEnd[$id]: entering lock" }
                     map[id] = RawAudio(data, format)
-                    Log.d(TAG, "convertResourcesToRawAudio.onEnd[$id]: signalAll")
+                    MediaLog.v(TAG) { "convertResourcesToRawAudio.onEnd[$id]: signalAll" }
                     condition.signalAll()
                 }
-                Log.d(TAG, "convertResourcesToRawAudio.onEnd[$id]: end")
+                MediaLog.v(TAG) { "convertResourcesToRawAudio.onEnd[$id]: end" }
             }
 
             override fun onError(decoder: AudioDecoder, e: java.lang.Exception) {
-                Log.d(TAG, "convertResourcesToRawAudio.onError[$id]: start: $e")
+                MediaLog.v(TAG) { "convertResourcesToRawAudio.onError[$id]: start: $e" }
                 lock.withLock {
-                    Log.d(TAG, "convertResourcesToRawAudio.onError[$id]: entering lock")
+                    MediaLog.v(TAG) { "convertResourcesToRawAudio.onError[$id]: entering lock" }
                     errors.add(e)
-                    Log.d(TAG, "convertResourcesToRawAudio.onError[$id]: signalAll")
+                    MediaLog.v(TAG) { "convertResourcesToRawAudio.onError[$id]: signalAll" }
                     condition.signalAll()
                 }
-                Log.d(TAG, "convertResourcesToRawAudio.onError[$id]: end")
+                MediaLog.v(TAG) { "convertResourcesToRawAudio.onError[$id]: end" }
             }
         }
 
-        Log.d(
-            TAG,
+        MediaLog.v(TAG) {
             "convertResourcesToRawAudio: start parallel decoding: thread = ${Thread.currentThread().id}"
-        )
+        }
         val executorService = Executors.newCachedThreadPool()
         idSet.forEach {
             executorService.execute {
-                Log.d(
-                    TAG,
+                MediaLog.v(TAG) {
                     "convertResourcesToRawAudio: decoding $it, thread = ${Thread.currentThread().id}"
-                )
+                }
                 val decoder = AudioDecoder()
                 decoder.setSource(context, it)
                 decoder.convert(Callback(it))
@@ -72,20 +86,19 @@ object AudioUtility {
 
 //        // Android 7.0 以上のみのサポートであれば下記のコードで実装可能
 //        Arrays.stream(resourceIds).distinct().parallel().forEach {
-//            Log.d(
-//                TAG,
+//            MediaLog.v(TAG) {
 //                "convertResourcesToRawAudio: decoding $it, thread = ${Thread.currentThread().id}"
-//            )
+//            }
 //            val decoder = AudioDecoder()
 //            decoder.setSource(context, it)
 //            decoder.convert(Callback(it))
 //        }
 
-        Log.d(TAG, "convertResourcesToRawAudio: waiting")
+        MediaLog.v(TAG, "convertResourcesToRawAudio: waiting")
         lock.withLock {
             while (errors.size == 0 && map.size < idSet.size) {
                 condition.await()
-//                Log.d(TAG, "convertResourcesToRawAudio: errors.size = ${errors.size}, out.size = ${map.size}, in.size = ${idSet.size}")
+//                MediaLog.d(TAG) { "convertResourcesToRawAudio: errors.size = ${errors.size}, out.size = ${map.size}, in.size = ${idSet.size}" }
             }
         }
 
@@ -93,11 +106,11 @@ object AudioUtility {
 
         if (errors.size > 0) {
             (0 until errors.size).forEach {
-                Log.w(TAG, "convertResourcesToRawAudio: error[$it]: ${errors[it]}")
+                MediaLog.w(TAG) { "convertResourcesToRawAudio: error[$it]: ${errors[it]}" }
             }
             throw errors[0]
         } else {
-            Log.d(TAG, "convertResourcesToRawAudio: success")
+            MediaLog.v(TAG, "convertResourcesToRawAudio: success")
             return resourceIds.map { map[it]!! }.toTypedArray()
         }
     }

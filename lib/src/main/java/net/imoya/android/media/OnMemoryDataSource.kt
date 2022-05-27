@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media
 
 import android.media.MediaDataSource
@@ -14,7 +30,9 @@ import java.nio.ByteBuffer
 class OnMemoryDataSource(private val data: ByteBuffer) : MediaDataSource() {
     @Throws(IOException::class)
     override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-        // Log.d(TAG, "readAt: position = " + position + ", bufferLength = " + buffer.length + ", offset = " + offset + ", size = " + size + ", srcLimit = " + this.data.limit());
+//        MediaLog.v(TAG) {
+//            "readAt: position = $position, bufferLength = ${buffer.size}, offset = $offset, size = $size, srcLimit = ${this.data.limit()}"
+//        }
         return if (position < 0) {
             throw IOException("Illegal position")
         } else if (offset < 0 || offset >= buffer.size) {
@@ -35,7 +53,7 @@ class OnMemoryDataSource(private val data: ByteBuffer) : MediaDataSource() {
                 written++
                 i++
             }
-            // Log.d(TAG, "written = $written")
+//            MediaLog.v(TAG) { "written = $written" }
             written
         }
     }

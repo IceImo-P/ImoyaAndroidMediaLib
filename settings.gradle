@@ -9,3 +9,5 @@
 rootProject.name = "ImoyaAndroidMediaLib"
 include ':app'
 include ':lib'
+include ':imoya-android-log'
+include ':imoya-android-util'

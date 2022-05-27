@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2022 IceImo-P
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package net.imoya.android.media.audio
 
 import android.content.Context
@@ -6,7 +22,7 @@ import android.media.AudioTrack
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import net.imoya.android.util.Log
+import net.imoya.android.media.MediaLog
 import java.io.ByteArrayOutputStream
 import java.io.FileDescriptor
 import java.io.IOException
@@ -111,15 +127,15 @@ class AudioDecoder {
             (0 until extractor.trackCount).forEach {
                 val format = extractor.getTrackFormat(it)
                 val mimeType = format.getString(MediaFormat.KEY_MIME)
-                Log.v(TAG) { "checkFormat: MIME type for track $it is: $mimeType" }
+                MediaLog.v(TAG) { "checkFormat: MIME type for track $it is: $mimeType" }
                 if (mimeType != null && mimeType.startsWith("audio/")) {
                     track = it
-                    Log.v(TAG) { "checkFormat: Audio track found: $it" }
+                    MediaLog.v(TAG) { "checkFormat: Audio track found: $it" }
                     return@loop
                 }
             }
         }
-        Log.v(TAG) { "checkFormat: Audio track is: $track" }
+        MediaLog.v(TAG) { "checkFormat: Audio track is: $track" }
         require(track >= 0) { "Illegal media type: No audio track at source" }
         extractor.selectTrack(track)
     }
@@ -129,7 +145,7 @@ class AudioDecoder {
      */
     fun convert(callback: AudioDecoderCallback) {
         try {
-            Log.v(TAG, "convert: start")
+            MediaLog.v(TAG, "convert: start")
             val format = extractor.getTrackFormat(track)
             val mimeType = format.getString(MediaFormat.KEY_MIME)
 
@@ -138,9 +154,9 @@ class AudioDecoder {
             decoder.configure(format, null, null, 0)
             outputFormat = decoder.outputFormat
             pcmEncoding = AudioUtility.getAudioEncoding(outputFormat)
-            Log.v(TAG) { "convert: Output = $outputFormat" }
+            MediaLog.v(TAG) { "convert: Output = $outputFormat" }
             decoder.start()
-            Log.v(TAG, "convert: end")
+            MediaLog.v(TAG, "convert: end")
         } catch (e: Exception) {
             callback.onError(this, e)
         }
@@ -158,21 +174,21 @@ class AudioDecoder {
         override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {
             try {
                 // 入力ファイルよりオーディオデータを読み取り入力バッファーへ設定する
-                Log.v(TAG) { "onInputBufferAvailable: start. index = $index" }
+                MediaLog.v(TAG) { "onInputBufferAvailable: start. index = $index" }
                 val buffer = codec.getInputBuffer(index)
                 if (buffer != null) {
                     val read = extractor.readSampleData(buffer, 0)
                     if (read < 0) {
                         // ファイル終端へ達した場合は終端フラグをセットする
-                        Log.v(TAG, "Input EOF")
+                        MediaLog.v(TAG, "Input EOF")
                         codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                     } else {
-                        Log.v(TAG) { "Input length = $read" }
+                        MediaLog.v(TAG) { "Input length = $read" }
                         val sampleTime = extractor.sampleTime
                         if (extractor.advance()) {
                             codec.queueInputBuffer(index, 0, read, sampleTime, 0)
                         } else {
-                            Log.v(TAG, "Input EOF (with data)")
+                            MediaLog.v(TAG, "Input EOF (with data)")
                             codec.queueInputBuffer(
                                 index,
                                 0,
@@ -183,7 +199,7 @@ class AudioDecoder {
                         }
                     }
                 } else {
-                    Log.w(TAG, "onInputBufferAvailable: No buffer available(MediaCodec returned null)")
+                    MediaLog.w(TAG, "onInputBufferAvailable: No buffer available(MediaCodec returned null)")
                 }
             } catch (e: Exception) {
                 errorProcess(codec, e)
@@ -195,7 +211,7 @@ class AudioDecoder {
             index: Int,
             info: MediaCodec.BufferInfo
         ) {
-            Log.v(TAG) { "onOutputBufferAvailable: start. index = $index" }
+            MediaLog.v(TAG) { "onOutputBufferAvailable: start. index = $index" }
             try {
                 val buffer = codec.getOutputBuffer(index)
                 if (buffer != null) {
@@ -207,7 +223,7 @@ class AudioDecoder {
                     }
                     codec.releaseOutputBuffer(index, false)
                 } else {
-                    Log.w(
+                    MediaLog.w(
                         TAG,
                         "onOutputBufferAvailable: No buffer available(MediaCodec returned null)"
                     )
@@ -216,7 +232,7 @@ class AudioDecoder {
                 // 終端か?
                 if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                     // 終端である場合
-                    Log.v(TAG, "Output EOF")
+                    MediaLog.v(TAG, "Output EOF")
 
                     destination.close()
                     codec.stop()
@@ -236,7 +252,7 @@ class AudioDecoder {
         }
 
         override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
-//            Log.w(TAG, "Changing media format function is not supported.")
+//            MediaLog.w(TAG, "Changing media format function is not supported.")
         }
 
         /**
@@ -278,7 +294,7 @@ class AudioDecoder {
          * エラー発生時の処理
          */
         private fun errorProcess(codec: MediaCodec, e: Exception) {
-            Log.i(TAG) { "Error: $e" }
+            MediaLog.i(TAG) { "Error: $e" }
 
             try {
                 destination.close()

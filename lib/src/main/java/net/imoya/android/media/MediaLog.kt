@@ -24,7 +24,7 @@ import net.imoya.android.log.StaticLogTemplate
  * Log for ImoyaAndroidMediaLib
  *
  * * Interfaces are compatible with [android.util.Log].
- * * If you will setup minimum output log level for ImoyaAndroidUtil,
+ * * If you will setup minimum output log level for ImoyaAndroidMediaLib,
  *   set string resource named "imoya_android_media_log_level" and call [init] on
  *   created application or activity.
  *

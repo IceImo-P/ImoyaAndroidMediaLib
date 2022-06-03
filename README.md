@@ -9,13 +9,86 @@
 
 ## Installation
 
-### Android application with Android Studio
+### For GitHub users using Android Studio (using GitHub packages) (recommended)
 
-1. Install [ImoyaAndroidLog](https://github.com/IceImo-P/ImoyaAndroidLog) with [this section](https://github.com/IceImo-P/ImoyaAndroidLog#android-application-with-android-studio).
-2. Install [ImoyaAndroidUtil](https://github.com/IceImo-P/ImoyaAndroidUtil) with [this section](https://github.com/IceImo-P/ImoyaAndroidUtil#android-application-with-android-studio).
-3. Download `imoya-android-media-release-[version].aar` from [Releases](https://github.com/IceImo-P/ImoyaAndroidMediaLib/releases) page.
-4. Place `imoya-android-media-release-[version].aar` in `libs` subdirectory of your app module.
-5. Add dependencies to your app module's `build.gradle`:
+* This solution is highly recommended as it allows you to view documents and use code completion.
+
+1. Prepare a GitHub personal access token with `read:packages` permission.
+   * If you do not have such a token, please create one by referring to the following page: [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
+2. Create file named `github.properties` in Your project root directory.
+3. Set the following content in `github.properties`:
+
+    ```text
+    gpr.user=[Your GitHub user ID]
+    gpr.token=[Your personal access token]
+    ```
+
+4. Add GitHub Packages repository to:
+   * `settings.gradle` in Your project root directory:
+
+       ```groovy
+       dependencyResolutionManagement {
+           // other settings
+
+           repositories {
+               // other dependency such as google(), mavenCentral(), etc.
+
+               def githubProperties = new Properties()
+               githubProperties.load(new FileInputStream(file("github.properties")))
+               maven {
+                   name = "GitHubPackages-ImoyaAndroidMediaLib"
+                   url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidMediaLib")
+                   credentials {
+                       username = githubProperties.getProperty("gpr.user") ?: System.getenv("GPR_USER")
+                       password = githubProperties.getProperty("gpr.token") ?: System.getenv("GPR_TOKEN")
+                   }
+               }
+           }
+       }
+       ```
+
+   * or `build.gradle` in Your project root directory:
+
+       ```groovy
+       allprojects {
+           repositories {
+               // other dependency such as google(), mavenCentral(), etc.
+
+               def githubProperties = new Properties()
+               githubProperties.load(new FileInputStream(rootProject.file("github.properties")))
+               maven {
+                   name = "GitHubPackages-ImoyaAndroidMediaLib"
+                   url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidMediaLib")
+                   credentials {
+                       username = githubProperties.getProperty("gpr.user") ?: System.getenv("GPR_USER")
+                       password = githubProperties.getProperty("gpr.token") ?: System.getenv("GPR_TOKEN")
+                   }
+               }
+           }
+
+           // other settings
+       }
+       ```
+
+5. Add dependencies to your module's `build.gradle`:
+
+    ```groovy
+    dependencies {
+        // (other dependencies)
+        implementation 'net.imoya.android.media:imoya-android-media:1.3.1'
+        implementation 'net.imoya.android.log:imoya-android-log:1.1.0'
+        // (other dependencies)
+    }
+    ```
+
+6. Sync project with Gradle.
+
+### For non-GitHub users, Android application with Android Studio (using aar)
+
+1. Install [ImoyaAndroidLog](https://github.com/IceImo-P/ImoyaAndroidLog) with reading [this section](https://github.com/IceImo-P/ImoyaAndroidLog#for-non-github-users-android-application-with-android-studio-using-aar).
+2. Download `imoya-android-media-release-[version].aar` from [Releases](https://github.com/IceImo-P/ImoyaAndroidMediaLib/releases) page.
+3. Place `imoya-android-media-release-[version].aar` in `libs` subdirectory of your app module.
+4. Add dependencies to your app module's `build.gradle`:
 
     ```groovy
     dependencies {
@@ -25,29 +98,28 @@
     }
     ```
 
-6. Sync project with Gradle.
+5. Sync project with Gradle.
 
-### Android library with Android Studio
+### For non-GitHub users, Android library with Android Studio (using aar)
 
-1. Install [ImoyaAndroidLog](https://github.com/IceImo-P/ImoyaAndroidLog) with [this section](https://github.com/IceImo-P/ImoyaAndroidLog#android-library-with-android-studio).
-2. Install [ImoyaAndroidUtil](https://github.com/IceImo-P/ImoyaAndroidUtil) with [this section](https://github.com/IceImo-P/ImoyaAndroidUtil#android-library-with-android-studio).
-3. Download `imoya-android-media-release-[version].aar` from [Releases](https://github.com/IceImo-P/ImoyaAndroidMediaLib/releases) page.
-4. Create `imoya-android-media` subdirectory in your project's root directory.
-5. Place `imoya-android-media-release-[version].aar` in `imoya-android-media` directory.
-6. Create `build.gradle` file in `imoya-android-media` directory and set content as below:
+1. Install [ImoyaAndroidLog](https://github.com/IceImo-P/ImoyaAndroidLog) with reading [this section](https://github.com/IceImo-P/ImoyaAndroidLog#for-non-github-users-android-library-with-android-studio-using-aar).
+2. Download `imoya-android-media-release-[version].aar` from [Releases](https://github.com/IceImo-P/ImoyaAndroidMediaLib/releases) page.
+3. Create `imoya-android-media` subdirectory in your project's root directory.
+4. Place `imoya-android-media-release-[version].aar` in `imoya-android-media` directory.
+5. Create `build.gradle` file in `imoya-android-media` directory and set content as below:
 
     ```text
     configurations.maybeCreate("default")
     artifacts.add("default", file('imoya-android-media-release-[version].aar'))
     ```
 
-7. Add the following line to the `settings.gradle` file in your project's root directory:
+6. Add the following line to the `settings.gradle` file in your project's root directory:
 
     ```text
     include ':imoya-android-media'
     ```
 
-8. Add dependencies to your library module's `build.gradle`.
+7. Add dependencies to your library module's `build.gradle`.
 
     ```groovy
     dependencies {
@@ -57,7 +129,7 @@
     }
     ```
 
-9. Sync project with Gradle.
+8. Sync project with Gradle.
 
 ## Logging
 

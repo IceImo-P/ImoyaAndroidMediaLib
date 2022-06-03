@@ -1,13 +1,21 @@
-//dependencyResolutionManagement {
-//    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-//    repositories {
-//        google()
-//        mavenCentral()
-//        jcenter() // Warning: this repository is going to shut down soon
-//    }
-//}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+
+        def githubProperties = new Properties()
+        githubProperties.load(new FileInputStream(file("github.properties")))
+        maven {
+            name = "GitHubPackages-ImoyaAndroidLog"
+            url = uri("https://maven.pkg.github.com/IceImo-P/ImoyaAndroidLog")
+            credentials {
+                username = githubProperties.getProperty("gpr.user") ?: System.getenv("GPR_USER")
+                password = githubProperties.getProperty("gpr.token") ?: System.getenv("GPR_TOKEN")
+            }
+        }
+    }
+}
 rootProject.name = "ImoyaAndroidMediaLib"
 include ':app'
 include ':lib'
-include ':imoya-android-log'
-include ':imoya-android-util'

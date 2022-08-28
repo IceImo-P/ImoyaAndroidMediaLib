@@ -73,7 +73,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
      * 変換結果。コンストラクタの resourceIds 引数と同一の順番で [RawAudio] が格納されている配列である。
      * エラー発生時は空配列が返される。
      */
-    @Suppress("weakness")
+    @Suppress("MemberVisibilityCanBePrivate")
     val result: Array<RawAudio>
         get() {
             return if (!this::resultCache.isInitialized) {

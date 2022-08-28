@@ -40,6 +40,12 @@ class RawAudioPlayer {
     var contentType = AudioAttributes.CONTENT_TYPE_UNKNOWN
 
     /**
+     * 音量(0.0～1.0)
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    var volume: Float = 1f
+
+    /**
      * 音声を再生する [AudioTrack]
      */
     private lateinit var track: AudioTrack
@@ -88,6 +94,10 @@ class RawAudioPlayer {
             .setBufferSizeInBytes(bufferSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+
+        if (volume != 1f /* && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP */) {
+            track.setVolume(volume)
+        }
 
         // 最初のデータをバッファに書き込む。
         MediaLog.v(TAG, "play: Writing data to AudioTrack")

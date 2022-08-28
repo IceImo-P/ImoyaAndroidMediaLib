@@ -57,6 +57,12 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
     var playerType: PlayerType = PlayerType.AUDIO_TRACK
 
     /**
+     * 音量(0.0～1.0)
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    var volume: Float = 1f
+
+    /**
      * 結合済み音声データ
      */
     private var trackData: ByteBuffer? = null
@@ -147,6 +153,7 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
         val player = RawAudioPlayer()
         player.audioUsage = audioUsageField
         player.contentType = contentTypeField
+        player.volume = volume
         rawAudioPlayer = player
         try {
             player.play(RawAudio(trackData!!.array(), trackFormat!!))

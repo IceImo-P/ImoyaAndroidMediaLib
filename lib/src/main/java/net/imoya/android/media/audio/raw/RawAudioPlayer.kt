@@ -42,7 +42,6 @@ class RawAudioPlayer {
     /**
      * 音量(0.0～1.0)
      */
-    @Suppress("MemberVisibilityCanBePrivate")
     var volume: Float = 1f
 
     /**

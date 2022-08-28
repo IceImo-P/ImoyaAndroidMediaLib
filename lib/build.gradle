@@ -4,7 +4,7 @@ plugins {
     id 'maven-publish'
 }
 
-def libVersionName = "1.4.0"
+def libVersionName = "1.4.1"
 
 android {
     namespace = 'net.imoya.android.media'

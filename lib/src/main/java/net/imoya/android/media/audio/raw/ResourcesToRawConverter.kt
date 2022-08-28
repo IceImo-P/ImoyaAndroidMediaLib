@@ -136,9 +136,9 @@ class ResourcesToRawConverter(private val context: Context, private val resource
         private lateinit var localCondition: Condition
 
         override fun run() {
-            MediaLog.v(TAG) {
-                "convertOne: decoding $id, thread = ${Thread.currentThread().id}"
-            }
+//            MediaLog.v(TAG) {
+//                "convertOne: decoding $id, thread = ${Thread.currentThread().id}"
+//            }
 
             localCondition = localLock.newCondition()
 
@@ -156,7 +156,7 @@ class ResourcesToRawConverter(private val context: Context, private val resource
                 ctx.condition.signalAll()
             }
 
-            MediaLog.v(TAG) { "convertOne: end. thread = ${Thread.currentThread().id}" }
+//            MediaLog.v(TAG) { "convertOne: end. thread = ${Thread.currentThread().id}" }
         }
     }
 
@@ -182,16 +182,16 @@ class ResourcesToRawConverter(private val context: Context, private val resource
     }
 
     private fun executeAndWait() {
-        MediaLog.v(TAG) {
-            "executeAndWait: start parallel decoding: thread = ${Thread.currentThread().id}"
-        }
-        val maxThreads = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+//        MediaLog.v(TAG) {
+//            "executeAndWait: start parallel decoding: thread = ${Thread.currentThread().id}"
+//        }
+        val maxThreads = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
         val executorService = Executors.newFixedThreadPool(maxThreads)
         idSet.forEach {
             executorService.execute(ConvertOne(it, ctx))
         }
 
-        MediaLog.v(TAG, "convertResourcesToRawAudio: waiting")
+//        MediaLog.v(TAG, "executeAndWait: waiting")
         waitForComplete()
 
         executorService.shutdownNow()
@@ -201,15 +201,15 @@ class ResourcesToRawConverter(private val context: Context, private val resource
         ctx.lock.withLock {
             while (ctx.errors.size == 0 && ctx.map.size < idSet.size) {
                 ctx.condition.await()
-                MediaLog.v(TAG) {
-                    "convertResourcesToRawAudio: errors.size = ${
-                        ctx.errors.size
-                    }, out.size = ${
-                        ctx.map.size
-                    }, in.size = ${
-                        idSet.size
-                    }"
-                }
+//                MediaLog.v(TAG) {
+//                    "waitForComplete: errors.size = ${
+//                        ctx.errors.size
+//                    }, out.size = ${
+//                        ctx.map.size
+//                    }, in.size = ${
+//                        idSet.size
+//                    }"
+//                }
             }
         }
     }

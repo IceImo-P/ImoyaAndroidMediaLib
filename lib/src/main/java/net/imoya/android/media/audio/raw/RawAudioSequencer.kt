@@ -47,13 +47,13 @@ class RawAudioSequencer : AudioSequencer<RawAudioSequenceItem>() {
     /**
      * オーディオ形式
      */
-    @Suppress("weaker")
+    @Suppress("MemberVisibilityCanBePrivate")
     var trackFormat: RawAudioFormat? = null
 
     /**
      * 再生方法
      */
-    @Suppress("weaker")
+    @Suppress("MemberVisibilityCanBePrivate")
     var playerType: PlayerType = PlayerType.AUDIO_TRACK
 
     /**

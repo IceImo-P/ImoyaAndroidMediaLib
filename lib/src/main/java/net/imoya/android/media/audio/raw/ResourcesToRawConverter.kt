@@ -148,7 +148,11 @@ class ResourcesToRawConverter(private val context: Context, private val resource
 
             // Wait for AudioDecoder
             localLock.withLock {
-                localCondition.await()
+                try {
+                    localCondition.await()
+                } catch (e: InterruptedException) {
+                    ctx.errors.add(e)
+                }
             }
 
             // Notify to controller
